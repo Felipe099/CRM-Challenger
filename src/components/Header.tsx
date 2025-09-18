@@ -1,9 +1,10 @@
 import { TrendingUp, Users, Target, DollarSign } from 'lucide-react';
 import { useContext } from 'react';
 import { LeadsContext } from '../context/LeadsContext';
+import { LoadingSpinner, ErrorMessage } from './LoadingComponents';
 
 export function Header() {
-    const { leads } = useContext(LeadsContext);
+    const { leads, isLoading, error, reloadLeads } = useContext(LeadsContext);
 
     const stats = {
         totalLeads: leads.length,
@@ -39,71 +40,100 @@ export function Header() {
                             </p>
                         </div>
                     </div>
+
+                    {isLoading && (
+                        <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/30">
+                            <LoadingSpinner size="sm" className="text-white" />
+                            <span className="text-white text-sm">
+                                Loading...
+                            </span>
+                        </div>
+                    )}
                 </div>
 
+                {error && (
+                    <div className="mb-6">
+                        <ErrorMessage
+                            message={error}
+                            onRetry={reloadLeads}
+                            className="bg-red-900/30 border-red-400/30 backdrop-blur-sm"
+                        />
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-blue-500/30 rounded-xl">
-                                <Users className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-blue-200 text-sm font-medium">
-                                    All Leads
-                                </p>
-                                <p className="text-3xl font-bold">
-                                    {stats.totalLeads}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <StatCard
+                        icon={Users}
+                        label="All Leads"
+                        value={stats.totalLeads}
+                        isLoading={isLoading}
+                        iconBg="bg-blue-500/30"
+                    />
 
-                    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-green-500/30 rounded-xl">
-                                <Target className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-blue-200 text-sm font-medium">
-                                    Qualified
-                                </p>
-                                <p className="text-3xl font-bold">
-                                    {stats.qualifiedLeads}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <StatCard
+                        icon={Target}
+                        label="Qualified"
+                        value={stats.qualifiedLeads}
+                        isLoading={isLoading}
+                        iconBg="bg-green-500/30"
+                    />
 
-                    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-yellow-500/30 rounded-xl">
-                                <TrendingUp className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-blue-200 text-sm font-medium">
-                                    Average Score
-                                </p>
-                                <p className="text-3xl font-bold">
-                                    {stats.averageScore}/100
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <StatCard
+                        icon={TrendingUp}
+                        label="Average Score"
+                        value={`${stats.averageScore}/100`}
+                        isLoading={isLoading}
+                        iconBg="bg-yellow-500/30"
+                    />
 
-                    <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-purple-500/30 rounded-xl">
-                                <DollarSign className="w-6 h-6" />
+                    <StatCard
+                        icon={DollarSign}
+                        label="Total Value"
+                        value={`$${stats.totalValue.toLocaleString()}`}
+                        isLoading={isLoading}
+                        iconBg="bg-purple-500/30"
+                    />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface StatCardProps {
+    icon: React.ComponentType<any>;
+    label: string;
+    value: string | number;
+    isLoading: boolean;
+    iconBg: string;
+}
+
+function StatCard({
+    icon: Icon,
+    label,
+    value,
+    isLoading,
+    iconBg,
+}: StatCardProps) {
+    return (
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300">
+            <div className="flex items-center space-x-4">
+                <div className={`p-3 ${iconBg} rounded-xl`}>
+                    <Icon className="w-6 h-6" />
+                </div>
+                <div>
+                    <p className="text-blue-200 text-sm font-medium">{label}</p>
+                    <div className="text-3xl font-bold">
+                        {isLoading ? (
+                            <div className="flex items-center">
+                                <LoadingSpinner
+                                    size="sm"
+                                    className="text-white mr-2"
+                                />
+                                <span className="text-lg">--</span>
                             </div>
-                            <div>
-                                <p className="text-blue-200 text-sm font-medium">
-                                    Total Value
-                                </p>
-                                <p className="text-3xl font-bold">
-                                    ${stats.totalValue.toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
+                        ) : (
+                            value
+                        )}
                     </div>
                 </div>
             </div>

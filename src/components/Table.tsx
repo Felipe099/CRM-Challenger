@@ -1,4 +1,4 @@
-import { useState, useMemo, useContext } from 'react';
+import { useState, useMemo, useContext, useEffect } from 'react';
 import {
     Search,
     Filter,
@@ -10,10 +10,18 @@ import {
 } from 'lucide-react';
 import { SlidePanel } from './SlidePanel';
 import { LeadsContext } from '../context/LeadsContext';
+import { LoadingTable, EmptyState, ErrorMessage } from './LoadingComponents';
+import {
+    getStatusColor,
+    getScoreColor,
+    getImageUrl,
+    safeLocalStorage,
+} from '../utils';
 import type { Lead, SortOrder } from '../types';
 
 export function Table() {
-    const { leads, updateLead } = useContext(LeadsContext);
+    const { leads, updateLead, isLoading, error, reloadLeads, clearError } =
+        useContext(LeadsContext);
 
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -21,37 +29,28 @@ export function Table() {
     const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState<boolean>(false);
 
-    const getStatusColor = (status: string): string => {
-        const statusColors: Record<string, string> = {
-            new: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-            'in contact': 'bg-blue-100 text-blue-800 border-blue-200',
-            qualified: 'bg-purple-100 text-purple-800 border-purple-200',
-            disqualified: 'bg-red-100 text-red-800 border-red-200',
-            closed: 'bg-gray-100 text-gray-800 border-gray-200',
-        };
-        return (
-            statusColors[status.toLowerCase()] ||
-            'bg-gray-100 text-gray-800 border-gray-200'
-        );
-    };
-
-    const getScoreColor = (score: number): string => {
-        if (score >= 80) return 'text-emerald-600 font-bold';
-        if (score >= 60) return 'text-yellow-600 font-semibold';
-        return 'text-red-600 font-semibold';
-    };
-
-    const getImageUrl = (lead: Lead): string => {
-        if (lead.image) {
-            return lead.image;
+    useEffect(() => {
+        const savedFilters = safeLocalStorage.getItem('leadFilters');
+        if (savedFilters) {
+            try {
+                const {
+                    statusFilter: savedStatus,
+                    sortOrder: savedSort,
+                    searchTerm: savedSearch,
+                } = JSON.parse(savedFilters);
+                if (savedStatus) setStatusFilter(savedStatus);
+                if (savedSort) setSortOrder(savedSort);
+                if (savedSearch) setSearchTerm(savedSearch);
+            } catch (err) {
+                console.warn('Invalid filter data in localStorage');
+            }
         }
+    }, []);
 
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-            lead.name
-        )}&background=4f46e5&color=ffffff&bold=true&size=128`;
-
-        return fallbackUrl;
-    };
+    useEffect(() => {
+        const filters = { statusFilter, sortOrder, searchTerm };
+        safeLocalStorage.setItem('leadFilters', JSON.stringify(filters));
+    }, [statusFilter, sortOrder, searchTerm]);
 
     const filteredAndSortedData = useMemo(() => {
         let filtered = [...leads];
@@ -64,22 +63,20 @@ export function Table() {
                         .includes(searchTerm.toLowerCase()) ||
                     lead.company
                         .toLowerCase()
-                        .includes(searchTerm.toLowerCase())
+                        .includes(searchTerm.toLowerCase()) ||
+                    lead.email.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
 
         if (statusFilter !== 'all') {
-            console.log(statusFilter);
             filtered = filtered.filter(
                 (lead) =>
                     lead.status.toLowerCase() === statusFilter.toLowerCase()
             );
         }
 
-        const sorted = [...filtered].sort((bigger, smaller) =>
-            sortOrder === 'desc'
-                ? smaller.score - bigger.score
-                : bigger.score - smaller.score
+        const sorted = [...filtered].sort((a, b) =>
+            sortOrder === 'desc' ? b.score - a.score : a.score - b.score
         );
 
         return sorted;
@@ -87,7 +84,6 @@ export function Table() {
 
     const uniqueStatuses = useMemo(() => {
         const statuses = [...new Set(leads.map((lead) => lead.status))];
-
         return statuses;
     }, [leads]);
 
@@ -108,26 +104,56 @@ export function Table() {
         ? leads.find((l) => l.id === selectedLeadId)
         : null;
 
+    if (isLoading && leads.length === 0) {
+        return <LoadingTable rows={8} columns={7} />;
+    }
+
+    if (error && leads.length === 0) {
+        return (
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+                <ErrorMessage
+                    message={error}
+                    onRetry={() => {
+                        clearError();
+                        reloadLeads();
+                    }}
+                />
+            </div>
+        );
+    }
+
     return (
         <>
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden mb-80">
                 <div className="bg-gradient-to-r from-gray-50 to-white p-6 border-b border-gray-200">
+                    {error && (
+                        <div className="mb-4">
+                            <ErrorMessage
+                                message={error}
+                                onRetry={() => {
+                                    clearError();
+                                    reloadLeads();
+                                }}
+                            />
+                        </div>
+                    )}
+
                     <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
                         <div className="relative flex-1 max-w-md">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
                                 type="text"
-                                placeholder="Search by name or company"
+                                placeholder="Search by name, company or email"
                                 value={searchTerm}
-                                onChange={(e) => {
-                                    setSearchTerm(e.target.value);
-                                }}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
+                                disabled={isLoading}
                             />
                             {searchTerm && (
                                 <button
                                     onClick={() => setSearchTerm('')}
                                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                    disabled={isLoading}
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
@@ -139,10 +165,11 @@ export function Table() {
                                 <Filter className="w-5 h-5 text-gray-500" />
                                 <select
                                     value={statusFilter}
-                                    onChange={(e) => {
-                                        setStatusFilter(e.target.value);
-                                    }}
+                                    onChange={(e) =>
+                                        setStatusFilter(e.target.value)
+                                    }
                                     className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
+                                    disabled={isLoading}
                                 >
                                     <option value="all">All Status</option>
                                     {uniqueStatuses.map((status) => (
@@ -201,20 +228,11 @@ export function Table() {
                         <tbody className="divide-y divide-gray-100">
                             {filteredAndSortedData.length === 0 ? (
                                 <tr>
-                                    <td
-                                        colSpan={7}
-                                        className="text-center py-12 text-gray-500"
-                                    >
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Search className="w-12 h-12 text-gray-300" />
-                                            <p className="text-lg font-medium">
-                                                Nenhum lead encontrado
-                                            </p>
-                                            <p className="text-sm">
-                                                Tente ajustar os filtros de
-                                                busca
-                                            </p>
-                                        </div>
+                                    <td colSpan={7} className="p-0">
+                                        <EmptyState
+                                            title="No leads found"
+                                            description="Try adjusting your search filters or add new leads"
+                                        />
                                     </td>
                                 </tr>
                             ) : (

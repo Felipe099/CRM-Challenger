@@ -1,10 +1,20 @@
 import { useState, useEffect, useContext } from 'react';
 import { Trash2, Users, Calendar, DollarSign, TrendingUp } from 'lucide-react';
 import { LeadsContext } from '../context/LeadsContext';
+import {
+    LoadingSpinner,
+    ErrorMessage,
+    EmptyState,
+    LoadingTable,
+} from './LoadingComponents';
+import { getStepColor, simulateApiCall, safeLocalStorage } from '../utils';
 import type { Lead, Client } from '../types';
 
 export function ClientsTable() {
     const [clients, setClients] = useState<Client[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [removingId, setRemovingId] = useState<number | null>(null);
     const { setLeads } = useContext(LeadsContext);
 
     useEffect(() => {
@@ -18,54 +28,83 @@ export function ClientsTable() {
         };
     }, []);
 
-    const loadClients = () => {
+    const loadClients = async () => {
+        setIsLoading(true);
+        setError(null);
+
         try {
-            const stored = localStorage.getItem('clients');
-            setClients(stored ? JSON.parse(stored) : []);
-        } catch (error) {
-            console.error('Erro ao carregar clientes:', error);
-            setClients([]);
+            await simulateApiCall(600, 0.03);
+
+            const stored = safeLocalStorage.getItem('clients');
+            const clientsData = stored ? JSON.parse(stored) : [];
+            setClients(clientsData);
+        } catch (err) {
+            const errorMessage =
+                err instanceof Error ? err.message : 'Failed to load prospects';
+            setError(errorMessage);
+            console.error('Error loading clients:', err);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const handleRemoveClient = (client: Client) => {
-        const updatedClients = clients.filter((user) => user.id !== client.id);
-        setClients(updatedClients);
-        localStorage.setItem('clients', JSON.stringify(updatedClients));
+    const handleRemoveClient = async (client: Client) => {
+        setRemovingId(client.id);
+        setError(null);
 
-        const leadToRestore: Lead = {
-            id: client.id,
-            name: client.name || client.accountName.split(' - ')[0] || '',
-            company: client.accountName.split(' - ')[1] || '',
-            email: client.email || '',
-            source: client.source || 'unknown',
-            status: client.status,
-            score: client.score || 75,
-            value: client.value || undefined,
-            image: client.image,
-        };
+        try {
+            await simulateApiCall(800, 0.05);
 
-        setLeads((prev: Lead[]) => {
-            const newLeads = [...prev, leadToRestore];
-            localStorage.setItem('contacts', JSON.stringify(newLeads));
-            window.dispatchEvent(new Event('contactsUpdated'));
-            return newLeads;
-        });
-    };
+            const updatedClients = clients.filter(
+                (user) => user.id !== client.id
+            );
+            setClients(updatedClients);
 
-    const getStepColor = (step: string): string => {
-        const stepColors: Record<string, string> = {
-            prospecting: 'bg-blue-100 text-blue-800 border-blue-200',
-            qualified: 'bg-green-100 text-green-800 border-green-200',
-            proposal: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-            negotiation: 'bg-orange-100 text-orange-800 border-orange-200',
-            'closed-won': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-            'closed-lost': 'bg-red-100 text-red-800 border-red-200',
-        };
-        return (
-            stepColors[step.toLowerCase()] ||
-            'bg-gray-100 text-gray-800 border-gray-200'
-        );
+            const success = safeLocalStorage.setItem(
+                'clients',
+                JSON.stringify(updatedClients)
+            );
+            if (!success) {
+                throw new Error('Failed to save changes');
+
+                console.log(client);
+            }
+
+            const leadToRestore: Lead = {
+                id: client.id,
+                name: client.name || client.accountName.split(' - ')[0] || '',
+                company:
+                    client.company || client.accountName.split(' - ')[1] || '',
+                email: client.email || '',
+                source: client.source || 'unknown',
+                status: client.status,
+                score: client.score || 75,
+                value: client.value || undefined,
+                image: client.image,
+            };
+
+            setLeads((prev: Lead[]) => {
+                const newLeads = [...prev, leadToRestore];
+                safeLocalStorage.setItem('contacts', JSON.stringify(newLeads));
+                window.dispatchEvent(new Event('contactsUpdated'));
+                return newLeads;
+            });
+
+            window.dispatchEvent(
+                new CustomEvent('clientDeleted', {
+                    detail: { clientId: client.id },
+                })
+            );
+        } catch (err) {
+            const errorMessage =
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to remove prospect';
+            setError(errorMessage);
+            console.error('Error removing client:', err);
+        } finally {
+            setRemovingId(null);
+        }
     };
 
     const totalValue = clients.reduce(
@@ -73,7 +112,9 @@ export function ClientsTable() {
         0
     );
 
-    console.log(clients);
+    if (isLoading && clients.length === 0) {
+        return <LoadingTable rows={6} columns={6} />;
+    }
 
     return (
         <div className="space-y-6">
@@ -92,82 +133,70 @@ export function ClientsTable() {
                             </p>
                         </div>
                     </div>
+
+                    {isLoading && clients.length > 0 && (
+                        <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                            <LoadingSpinner size="sm" className="text-white" />
+                            <span className="text-white text-sm">
+                                Updating...
+                            </span>
+                        </div>
+                    )}
                 </div>
 
+                {error && (
+                    <div className="mb-6">
+                        <ErrorMessage
+                            message={error}
+                            onRetry={() => {
+                                setError(null);
+                                loadClients();
+                            }}
+                            className="bg-red-900/30 border-red-400/30 backdrop-blur-sm"
+                        />
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                        <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-green-500/30 rounded-lg">
-                                <Users className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="text-purple-200 text-sm font-medium">
-                                    All Prospects
-                                </p>
-                                <p className="text-2xl font-bold">
-                                    {clients.length}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <StatCard
+                        icon={Users}
+                        label="All Prospects"
+                        value={clients.length}
+                        isLoading={isLoading && clients.length === 0}
+                        iconBg="bg-green-500/30"
+                    />
 
-                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                        <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-blue-500/30 rounded-lg">
-                                <DollarSign className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="text-purple-200 text-sm font-medium">
-                                    Value Total
-                                </p>
-                                <p className="text-2xl font-bold">
-                                    ${totalValue.toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <StatCard
+                        icon={DollarSign}
+                        label="Total Value"
+                        value={`$${totalValue.toLocaleString()}`}
+                        isLoading={isLoading && clients.length === 0}
+                        iconBg="bg-blue-500/30"
+                    />
 
-                    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                        <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-yellow-500/30 rounded-lg">
-                                <TrendingUp className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <p className="text-purple-200 text-sm font-medium">
-                                    Average Value
-                                </p>
-                                <p className="text-2xl font-bold">
-                                    $
-                                    {clients.length > 0
-                                        ? Math.round(
-                                              totalValue / clients.length
-                                          ).toLocaleString()
-                                        : '0'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <StatCard
+                        icon={TrendingUp}
+                        label="Average Value"
+                        value={`$${
+                            clients.length > 0
+                                ? Math.round(
+                                      totalValue / clients.length
+                                  ).toLocaleString()
+                                : '0'
+                        }`}
+                        isLoading={isLoading && clients.length === 0}
+                        iconBg="bg-yellow-500/30"
+                    />
                 </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                {clients.length === 0 ? (
-                    <div className="text-center py-16">
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="p-4 bg-gray-100 rounded-full">
-                                <Users className="w-12 h-12 text-gray-400" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                    No prospects converted yet
-                                </h3>
-                                <p className="text-gray-500">
-                                    Convert some leads to see your prospects
-                                    here
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                {clients.length === 0 && !isLoading ? (
+                    <EmptyState
+                        title="No prospects converted yet"
+                        description="Convert some leads to see your prospects here"
+                        icon={Users}
+                    />
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full">
@@ -177,7 +206,7 @@ export function ClientsTable() {
                                         ID
                                     </th>
                                     <th className="text-left p-6 font-semibold text-gray-700">
-                                        Name Account
+                                        Account Name
                                     </th>
                                     <th className="text-left p-6 font-semibold text-gray-700">
                                         Step
@@ -241,10 +270,23 @@ export function ClientsTable() {
                                                 onClick={() =>
                                                     handleRemoveClient(client)
                                                 }
-                                                className="inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5"
+                                                disabled={
+                                                    removingId === client.id
+                                                }
+                                                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                                                    removingId === client.id
+                                                        ? 'bg-gray-400 text-white cursor-not-allowed'
+                                                        : 'bg-red-500 hover:bg-red-600 text-white hover:shadow-lg transform hover:-translate-y-0.5'
+                                                }`}
                                             >
-                                                <Trash2 className="w-4 h-4" />
-                                                Remove
+                                                {removingId === client.id ? (
+                                                    <LoadingSpinner size="sm" />
+                                                ) : (
+                                                    <Trash2 className="w-4 h-4" />
+                                                )}
+                                                {removingId === client.id
+                                                    ? 'Removing...'
+                                                    : 'Remove'}
                                             </button>
                                         </td>
                                     </tr>
@@ -253,6 +295,50 @@ export function ClientsTable() {
                         </table>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+interface StatCardProps {
+    icon: React.ComponentType<any>;
+    label: string;
+    value: string | number;
+    isLoading: boolean;
+    iconBg: string;
+}
+
+function StatCard({
+    icon: Icon,
+    label,
+    value,
+    isLoading,
+    iconBg,
+}: StatCardProps) {
+    return (
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+            <div className="flex items-center space-x-3">
+                <div className={`p-2 ${iconBg} rounded-lg`}>
+                    <Icon className="w-5 h-5" />
+                </div>
+                <div>
+                    <p className="text-purple-200 text-sm font-medium">
+                        {label}
+                    </p>
+                    <div className="text-2xl font-bold">
+                        {isLoading ? (
+                            <div className="flex items-center">
+                                <LoadingSpinner
+                                    size="sm"
+                                    className="text-white mr-2"
+                                />
+                                <span className="text-lg">--</span>
+                            </div>
+                        ) : (
+                            value
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );

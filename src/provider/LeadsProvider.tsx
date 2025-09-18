@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { Lead, Client } from '../types';
-import db from '../assets/db.json';
 import { LeadsContext } from '../context/LeadsContext';
+import { simulateApiCall, safeLocalStorage } from '../utils';
+import db from '../assets/db.json';
 
 interface LeadsProviderProps {
     children: ReactNode;
@@ -10,19 +11,30 @@ interface LeadsProviderProps {
 
 export function LeadsProvider({ children }: LeadsProviderProps) {
     const [leads, setLeads] = useState<Lead[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const reloadLeads = () => {
+    const clearError = useCallback(() => {
+        setError(null);
+    }, []);
+
+    const reloadLeads = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+
         try {
-            const storedClients = localStorage.getItem('clients');
+            await simulateApiCall(500, 0.05);
+
+            const storedClients = safeLocalStorage.getItem('clients');
             const clients: Client[] = storedClients
                 ? JSON.parse(storedClients)
                 : [];
             const clientIds = clients.map((c) => c.id);
 
-            const storedContacts = localStorage.getItem('contacts');
+            const storedContacts = safeLocalStorage.getItem('contacts');
             const allLeads: Lead[] = storedContacts
                 ? JSON.parse(storedContacts)
-                : (db as Lead[]).filter((lead) => !clientIds.includes(lead.id));
+                : db.filter((lead) => !clientIds.includes(lead.id));
 
             const uniqueLeads = allLeads.reduce(
                 (acc: Lead[], current: Lead) => {
@@ -45,107 +57,186 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
                 filteredLeads.length !== allLeads.length ||
                 uniqueLeads.length !== allLeads.length
             ) {
-                localStorage.setItem('contacts', JSON.stringify(filteredLeads));
+                safeLocalStorage.setItem(
+                    'contacts',
+                    JSON.stringify(filteredLeads)
+                );
             }
 
             setLeads(filteredLeads);
-        } catch {
-            setLeads(db as Lead[]);
+        } catch (err) {
+            const errorMessage =
+                err instanceof Error ? err.message : 'Failed to load leads';
+            setError(errorMessage);
+            console.error('Error loading leads:', err);
+        } finally {
+            setIsLoading(false);
         }
-    };
+    }, []);
 
-    const restoreLeadFromClient = (clientId: number) => {
-        const originalLead = (db as Lead[]).find(
-            (lead) => lead.id === clientId
-        );
-        if (!originalLead) return;
+    const restoreLeadFromClient = useCallback(async (clientId: number) => {
+        setIsLoading(true);
+        setError(null);
 
-        const storedContacts = localStorage.getItem('contacts');
-        const currentLeads: Lead[] = storedContacts
-            ? JSON.parse(storedContacts)
-            : [];
+        try {
+            await simulateApiCall(300, 0.02);
 
-        if (currentLeads.some((lead) => lead.id === clientId)) return;
+            const originalLead = db.find((lead) => lead.id === clientId);
+            if (!originalLead) return;
 
-        const updatedLeads = [...currentLeads, originalLead];
+            const storedContacts = safeLocalStorage.getItem('contacts');
+            const currentLeads: Lead[] = storedContacts
+                ? JSON.parse(storedContacts)
+                : [];
 
-        const uniqueLeads = updatedLeads.reduce(
-            (acc: Lead[], current: Lead) => {
-                const existingLead = acc.find((lead) => lead.id === current.id);
-                if (!existingLead) {
-                    acc.push(current);
-                }
-                return acc;
-            },
-            []
-        );
+            if (currentLeads.some((lead) => lead.id === clientId)) return;
 
-        localStorage.setItem('contacts', JSON.stringify(uniqueLeads));
-        setLeads(uniqueLeads);
-        window.dispatchEvent(new Event('contactsUpdated'));
-    };
+            const updatedLeads = [...currentLeads, originalLead];
 
-    const updateLead = (id: number, updatedData: Partial<Lead>) => {
-        setLeads((prev) => {
-            const updatedLeads = prev.map((lead) =>
-                lead.id === id ? { ...lead, ...updatedData } : lead
+            const uniqueLeads = updatedLeads.filter(
+                (lead, index, self) =>
+                    index === self.findIndex((l) => l.id === lead.id)
             );
-            localStorage.setItem('contacts', JSON.stringify(updatedLeads));
 
-            const storedClients = localStorage.getItem('clients');
-            if (storedClients) {
-                const clients: Client[] = JSON.parse(storedClients);
-                if (clients.some((c) => c.id === id)) {
-                    const updatedClients = clients.map((client) =>
-                        client.id === id
-                            ? {
-                                  ...client,
-                                  email: updatedData.email ?? client.email,
-                                  nome: updatedData.name ?? client.name,
-                              }
-                            : client
-                    );
-                    localStorage.setItem(
-                        'clients',
-                        JSON.stringify(updatedClients)
-                    );
-                    window.dispatchEvent(new Event('clientsUpdated'));
-                }
+            const success = safeLocalStorage.setItem(
+                'contacts',
+                JSON.stringify(uniqueLeads)
+            );
+            if (!success) {
+                throw new Error('Failed to save to local storage');
             }
 
+            setLeads(uniqueLeads as Lead[]);
             window.dispatchEvent(new Event('contactsUpdated'));
-            return updatedLeads;
-        });
-    };
+        } catch (err) {
+            const errorMessage =
+                err instanceof Error ? err.message : 'Failed to restore lead';
+            setError(errorMessage);
+            console.error('Error restoring lead:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    const updateLead = useCallback(
+        async (id: number, updatedData: Partial<Lead>) => {
+            const originalLeads = [...leads];
+
+            setLeads((prev) =>
+                prev.map((lead) =>
+                    lead.id === id ? { ...lead, ...updatedData } : lead
+                )
+            );
+
+            try {
+                await simulateApiCall(800, 0.1);
+
+                const updatedLeads = leads.map((lead) =>
+                    lead.id === id ? { ...lead, ...updatedData } : lead
+                );
+
+                const success = safeLocalStorage.setItem(
+                    'contacts',
+                    JSON.stringify(updatedLeads)
+                );
+                if (!success) {
+                    throw new Error('Failed to save to local storage');
+                }
+
+                const storedClients = safeLocalStorage.getItem('clients');
+                if (storedClients) {
+                    const clients: Client[] = JSON.parse(storedClients);
+                    const clientIndex = clients.findIndex((c) => c.id === id);
+
+                    if (clientIndex !== -1) {
+                        const updatedClients = clients.map((client, index) =>
+                            index === clientIndex
+                                ? {
+                                      ...client,
+                                      email: updatedData.email ?? client.email,
+                                      name: updatedData.name ?? client.name,
+                                      status:
+                                          updatedData.status ?? client.status,
+                                  }
+                                : client
+                        );
+
+                        safeLocalStorage.setItem(
+                            'clients',
+                            JSON.stringify(updatedClients)
+                        );
+                        window.dispatchEvent(new Event('clientsUpdated'));
+                    }
+                }
+
+                window.dispatchEvent(new Event('contactsUpdated'));
+            } catch (err) {
+                setLeads(originalLeads);
+
+                const errorMessage =
+                    err instanceof Error
+                        ? err.message
+                        : 'Failed to update lead';
+                setError(errorMessage);
+                console.error('Error updating lead:', err);
+                throw err;
+            }
+        },
+        [leads]
+    );
 
     useEffect(() => {
         reloadLeads();
 
         const handleContactsUpdate = () => reloadLeads();
         const handleClientsUpdate = () => reloadLeads();
-        const handleClientDeleted = (event: CustomEvent) =>
-            restoreLeadFromClient(event.detail.clientId);
+
+        const handleClientDeleted = (event: Event) => {
+            const customEvent = event as CustomEvent<{ clientId: number }>;
+            restoreLeadFromClient(customEvent.detail.clientId);
+        };
 
         window.addEventListener('contactsUpdated', handleContactsUpdate);
         window.addEventListener('clientsUpdated', handleClientsUpdate);
-        window.addEventListener(
-            'clientDeleted',
-            handleClientDeleted as EventListener
-        );
+        window.addEventListener('clientDeleted', handleClientDeleted);
 
         return () => {
             window.removeEventListener('contactsUpdated', handleContactsUpdate);
             window.removeEventListener('clientsUpdated', handleClientsUpdate);
-            window.removeEventListener(
-                'clientDeleted',
-                handleClientDeleted as EventListener
-            );
+            window.removeEventListener('clientDeleted', handleClientDeleted);
         };
+    }, []);
+
+    useEffect(() => {
+        const persistFilters = () => {
+            const filters = safeLocalStorage.getItem('leadFilters');
+            if (filters) {
+                try {
+                    const {
+                        statusFilter: _statusFilter,
+                        sortOrder: _sortOrder,
+                        searchTerm: _searchTerm,
+                    } = JSON.parse(filters);
+                } catch (err) {
+                    console.warn('Invalid filter data in localStorage');
+                }
+            }
+        };
+
+        persistFilters();
     }, []);
 
     return (
         <LeadsContext.Provider
-            value={{ leads, setLeads, updateLead, reloadLeads }}
+            value={{
+                leads,
+                setLeads,
+                updateLead,
+                reloadLeads,
+                isLoading,
+                error,
+                clearError,
+            }}
         >
             {children}
         </LeadsContext.Provider>

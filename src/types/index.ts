@@ -30,17 +30,25 @@ export interface Client {
 export interface LeadsContextType {
     leads: Lead[];
     setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
-    updateLead: (id: number, updatedData: Partial<Lead>) => void;
-    reloadLeads: () => void;
+    updateLead: (id: number, updatedData: Partial<Lead>) => Promise<void>;
+    reloadLeads: () => Promise<void>;
+    isLoading: boolean;
+    error: string | null;
+    clearError: () => void;
 }
 
 export type TabType = 'leads' | 'clients';
 
 export type StatusType =
-    | 'new'
-    | 'in contact'
-    | 'qualified'
-    | 'disqualified'
-    | 'closed';
+    | 'New'
+    | 'In Contact'
+    | 'Qualified'
+    | 'Disqualified'
+    | 'Closed';
 
 export type SortOrder = 'asc' | 'desc';
+
+export interface AppState {
+    isLoading: boolean;
+    error: string | null;
+}

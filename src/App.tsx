@@ -16,7 +16,7 @@ export function App() {
 
                 <div className="flex gap-2 mb-6">
                     <button
-                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-sm cursor-pointer ${
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-sm ${
                             activeTab === 'leads'
                                 ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transform scale-105'
                                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
@@ -33,7 +33,7 @@ export function App() {
                     </button>
 
                     <button
-                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-sm cursor-pointer ${
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-sm ${
                             activeTab === 'clients'
                                 ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg transform scale-105'
                                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'

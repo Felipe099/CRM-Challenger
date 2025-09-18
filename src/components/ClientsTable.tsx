@@ -108,7 +108,7 @@ export function ClientsTable() {
     };
 
     const totalValue = clients.reduce(
-        (acc, client) => acc + (client.value || 0),
+        (account, client) => account + (client.value || 0),
         0
     );
 

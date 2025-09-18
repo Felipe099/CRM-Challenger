@@ -253,7 +253,7 @@ export function SlidePanel({
                         />
                     )}
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-8 max-h-[calc(100vh-400px)]     md:max-h-[calc(100vh-160px)] ">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-8 max-h-[calc(100vh-100px)] ">
                         <div className="bg-gradient-to-r from-gray-50 to-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                             <div className="flex items-center space-x-4">
                                 <img

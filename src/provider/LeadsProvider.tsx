@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { Lead, Client } from '../types';
 import { LeadsContext } from '../context/LeadsContext';
-import { simulateApiCall, safeLocalStorage } from '../utils';
+import { safeLocalStorage } from '../utils';
 import db from '../assets/db.json';
 
 interface LeadsProviderProps {
@@ -23,8 +23,6 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
         setError(null);
 
         try {
-            await simulateApiCall(500, 0.05);
-
             const storedClients = safeLocalStorage.getItem('clients');
             const clients: Client[] = storedClients
                 ? JSON.parse(storedClients)
@@ -37,14 +35,14 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
                 : db.filter((lead) => !clientIds.includes(lead.id));
 
             const uniqueLeads = allLeads.reduce(
-                (acc: Lead[], current: Lead) => {
-                    const existingLead = acc.find(
+                (account: Lead[], current: Lead) => {
+                    const existingLead = account.find(
                         (lead) => lead.id === current.id
                     );
                     if (!existingLead) {
-                        acc.push(current);
+                        account.push(current);
                     }
-                    return acc;
+                    return account;
                 },
                 []
             );
@@ -79,8 +77,6 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
         setError(null);
 
         try {
-            await simulateApiCall(300, 0.02);
-
             const originalLead = db.find((lead) => lead.id === clientId);
             if (!originalLead) return;
 
@@ -95,7 +91,7 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
 
             const uniqueLeads = updatedLeads.filter(
                 (lead, index, self) =>
-                    index === self.findIndex((l) => l.id === lead.id)
+                    index === self.findIndex((steer) => steer.id === lead.id)
             );
 
             const success = safeLocalStorage.setItem(
@@ -120,17 +116,10 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
 
     const updateLead = useCallback(
         async (id: number, updatedData: Partial<Lead>) => {
-            const originalLeads = [...leads];
-
-            setLeads((prev) =>
-                prev.map((lead) =>
-                    lead.id === id ? { ...lead, ...updatedData } : lead
-                )
-            );
+            setIsLoading(true);
+            setError(null);
 
             try {
-                await simulateApiCall(800, 0.1);
-
                 const updatedLeads = leads.map((lead) =>
                     lead.id === id ? { ...lead, ...updatedData } : lead
                 );
@@ -169,10 +158,9 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
                     }
                 }
 
+                setLeads(updatedLeads);
                 window.dispatchEvent(new Event('contactsUpdated'));
             } catch (err) {
-                setLeads(originalLeads);
-
                 const errorMessage =
                     err instanceof Error
                         ? err.message
@@ -180,6 +168,8 @@ export function LeadsProvider({ children }: LeadsProviderProps) {
                 setError(errorMessage);
                 console.error('Error updating lead:', err);
                 throw err;
+            } finally {
+                setIsLoading(false);
             }
         },
         [leads]

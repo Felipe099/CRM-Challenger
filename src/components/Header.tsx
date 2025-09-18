@@ -13,9 +13,13 @@ export function Header() {
         ).length,
         averageScore:
             Math.round(
-                leads.reduce((acc, lead) => acc + lead.score, 0) / leads.length
+                leads.reduce((account, lead) => account + lead.score, 0) /
+                    leads.length
             ) || 0,
-        totalValue: leads.reduce((acc, lead) => acc + (lead.value || 0), 0),
+        totalValue: leads.reduce(
+            (account, lead) => account + (lead.value || 0),
+            0
+        ),
     };
 
     return (

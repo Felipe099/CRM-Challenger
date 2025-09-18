@@ -75,8 +75,10 @@ export function Table() {
             );
         }
 
-        const sorted = [...filtered].sort((a, b) =>
-            sortOrder === 'desc' ? b.score - a.score : a.score - b.score
+        const sorted = [...filtered].sort((bigger, smaller) =>
+            sortOrder === 'desc'
+                ? smaller.score - bigger.score
+                : bigger.score - smaller.score
         );
 
         return sorted;

@@ -41,8 +41,20 @@ export function Table() {
         return 'text-red-600 font-semibold';
     };
 
+    const getImageUrl = (lead: Lead): string => {
+        if (lead.image) {
+            return lead.image;
+        }
+
+        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            lead.name
+        )}&background=4f46e5&color=ffffff&bold=true&size=128`;
+
+        return fallbackUrl;
+    };
+
     const filteredAndSortedData = useMemo(() => {
-        let filtered = leads;
+        let filtered = [...leads];
 
         if (searchTerm) {
             filtered = filtered.filter(
@@ -52,21 +64,32 @@ export function Table() {
                         .includes(searchTerm.toLowerCase()) ||
                     lead.company
                         .toLowerCase()
-                        .includes(searchTerm.toLowerCase()) ||
-                    lead.email.toLowerCase().includes(searchTerm.toLowerCase())
+                        .includes(searchTerm.toLowerCase())
             );
         }
 
         if (statusFilter !== 'all') {
-            filtered = filtered.filter((lead) => lead.status === statusFilter);
+            console.log(statusFilter);
+            filtered = filtered.filter(
+                (lead) =>
+                    lead.status.toLowerCase() === statusFilter.toLowerCase()
+            );
         }
 
-        return [...filtered].sort((a, b) =>
-            sortOrder === 'desc' ? b.score - a.score : a.score - b.score
+        const sorted = [...filtered].sort((bigger, smaller) =>
+            sortOrder === 'desc'
+                ? smaller.score - bigger.score
+                : bigger.score - smaller.score
         );
+
+        return sorted;
     }, [leads, statusFilter, sortOrder, searchTerm]);
 
-    const uniqueStatuses = [...new Set(leads.map((lead) => lead.status))];
+    const uniqueStatuses = useMemo(() => {
+        const statuses = [...new Set(leads.map((lead) => lead.status))];
+
+        return statuses;
+    }, [leads]);
 
     const toggleSort = () =>
         setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
@@ -88,17 +111,17 @@ export function Table() {
     return (
         <>
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                {/* Header com filtros */}
                 <div className="bg-gradient-to-r from-gray-50 to-white p-6 border-b border-gray-200">
                     <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-                        {/* Busca */}
                         <div className="relative flex-1 max-w-md">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input
                                 type="text"
-                                placeholder="Buscar por nome, empresa ou email..."
+                                placeholder="Search by name or company"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                }}
                                 className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
                             />
                             {searchTerm && (
@@ -111,18 +134,17 @@ export function Table() {
                             )}
                         </div>
 
-                        {/* Filtros */}
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2">
                                 <Filter className="w-5 h-5 text-gray-500" />
                                 <select
                                     value={statusFilter}
-                                    onChange={(e) =>
-                                        setStatusFilter(e.target.value)
-                                    }
+                                    onChange={(e) => {
+                                        setStatusFilter(e.target.value);
+                                    }}
                                     className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
                                 >
-                                    <option value="all">Todos os Status</option>
+                                    <option value="all">All Status</option>
                                     {uniqueStatuses.map((status) => (
                                         <option key={status} value={status}>
                                             {status.charAt(0).toUpperCase() +
@@ -133,14 +155,13 @@ export function Table() {
                             </div>
 
                             <div className="text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded-lg font-medium">
-                                {filteredAndSortedData.length} de {leads.length}{' '}
-                                leads
+                                {filteredAndSortedData.length} out of{' '}
+                                {leads.length} leads
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Tabela */}
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b border-gray-200">
@@ -149,13 +170,13 @@ export function Table() {
                                     Lead
                                 </th>
                                 <th className="text-left p-4 font-semibold text-gray-700">
-                                    Empresa
+                                    Company
                                 </th>
                                 <th className="text-left p-4 font-semibold text-gray-700">
-                                    Contato
+                                    Contact
                                 </th>
                                 <th className="text-left p-4 font-semibold text-gray-700">
-                                    Fonte
+                                    Source
                                 </th>
                                 <th
                                     className="text-left p-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors rounded-lg"
@@ -173,7 +194,7 @@ export function Table() {
                                     Status
                                 </th>
                                 <th className="text-center p-4 font-semibold text-gray-700">
-                                    Ações
+                                    Actions
                                 </th>
                             </tr>
                         </thead>
@@ -199,7 +220,7 @@ export function Table() {
                             ) : (
                                 filteredAndSortedData.map((lead) => (
                                     <tr
-                                        key={lead.id}
+                                        key={`lead-${lead.id}`}
                                         className="hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
                                         onClick={() => handleLeadClick(lead)}
                                     >
@@ -207,11 +228,15 @@ export function Table() {
                                             <div className="flex items-center space-x-3">
                                                 <img
                                                     className="w-10 h-10 rounded-full ring-2 ring-gray-200 group-hover:ring-blue-300 transition-all duration-200"
-                                                    src={
-                                                        lead.image ||
-                                                        `https://ui-avatars.com/api/?name=${lead.name}&background=random`
-                                                    }
+                                                    src={getImageUrl(lead)}
                                                     alt={lead.name}
+                                                    onError={(e) => {
+                                                        const target =
+                                                            e.target as HTMLImageElement;
+                                                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                                            lead.name
+                                                        )}&background=4f46e5&color=ffffff&bold=true&size=128`;
+                                                    }}
                                                 />
                                                 <div>
                                                     <p className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">

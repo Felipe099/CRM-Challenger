@@ -1,12 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import {
-    Trash2,
-    ArrowLeft,
-    Users,
-    Calendar,
-    DollarSign,
-    TrendingUp,
-} from 'lucide-react';
+import { Trash2, Users, Calendar, DollarSign, TrendingUp } from 'lucide-react';
 import { LeadsContext } from '../context/LeadsContext';
 import type { Lead, Client } from '../types';
 
@@ -36,19 +29,20 @@ export function ClientsTable() {
     };
 
     const handleRemoveClient = (client: Client) => {
-        const updatedClients = clients.filter((c) => c.id !== client.id);
+        const updatedClients = clients.filter((user) => user.id !== client.id);
         setClients(updatedClients);
         localStorage.setItem('clients', JSON.stringify(updatedClients));
 
         const leadToRestore: Lead = {
             id: client.id,
-            name: client.nome || client.accountName.split(' - ')[0] || '',
+            name: client.name || client.accountName.split(' - ')[0] || '',
             company: client.accountName.split(' - ')[1] || '',
             email: client.email || '',
             source: client.source || 'unknown',
-            status: 'qualified',
+            status: client.status,
             score: client.score || 75,
-            value: client.valor || undefined,
+            value: client.value || undefined,
+            image: client.image,
         };
 
         setLeads((prev: Lead[]) => {
@@ -59,8 +53,8 @@ export function ClientsTable() {
         });
     };
 
-    const getEtapaColor = (etapa: string): string => {
-        const etapaColors: Record<string, string> = {
+    const getStepColor = (step: string): string => {
+        const stepColors: Record<string, string> = {
             prospecting: 'bg-blue-100 text-blue-800 border-blue-200',
             qualified: 'bg-green-100 text-green-800 border-green-200',
             proposal: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -69,19 +63,20 @@ export function ClientsTable() {
             'closed-lost': 'bg-red-100 text-red-800 border-red-200',
         };
         return (
-            etapaColors[etapa.toLowerCase()] ||
+            stepColors[step.toLowerCase()] ||
             'bg-gray-100 text-gray-800 border-gray-200'
         );
     };
 
     const totalValue = clients.reduce(
-        (acc, client) => acc + (client.valor || 0),
+        (acc, client) => acc + (client.value || 0),
         0
     );
 
+    console.log(clients);
+
     return (
         <div className="space-y-6">
-            {/* Header com estatísticas */}
             <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center space-x-4">
@@ -90,10 +85,10 @@ export function ClientsTable() {
                         </div>
                         <div>
                             <h2 className="text-3xl font-bold">
-                                Prospects Convertidos
+                                Converted Prospects
                             </h2>
                             <p className="text-purple-200 mt-1">
-                                Leads que se tornaram oportunidades ativas
+                                Leads that became active opportunities
                             </p>
                         </div>
                     </div>
@@ -107,7 +102,7 @@ export function ClientsTable() {
                             </div>
                             <div>
                                 <p className="text-purple-200 text-sm font-medium">
-                                    Total de Prospects
+                                    All Prospects
                                 </p>
                                 <p className="text-2xl font-bold">
                                     {clients.length}
@@ -123,7 +118,7 @@ export function ClientsTable() {
                             </div>
                             <div>
                                 <p className="text-purple-200 text-sm font-medium">
-                                    Valor Total
+                                    Value Total
                                 </p>
                                 <p className="text-2xl font-bold">
                                     ${totalValue.toLocaleString()}
@@ -139,7 +134,7 @@ export function ClientsTable() {
                             </div>
                             <div>
                                 <p className="text-purple-200 text-sm font-medium">
-                                    Valor Médio
+                                    Average Value
                                 </p>
                                 <p className="text-2xl font-bold">
                                     $
@@ -155,7 +150,6 @@ export function ClientsTable() {
                 </div>
             </div>
 
-            {/* Tabela */}
             <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                 {clients.length === 0 ? (
                     <div className="text-center py-16">
@@ -165,11 +159,11 @@ export function ClientsTable() {
                             </div>
                             <div>
                                 <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                                    Nenhum prospect convertido ainda
+                                    No prospects converted yet
                                 </h3>
                                 <p className="text-gray-500">
-                                    Converta alguns leads para ver seus
-                                    prospects aqui
+                                    Convert some leads to see your prospects
+                                    here
                                 </p>
                             </div>
                         </div>
@@ -183,19 +177,19 @@ export function ClientsTable() {
                                         ID
                                     </th>
                                     <th className="text-left p-6 font-semibold text-gray-700">
-                                        Nome da Conta
+                                        Name Account
                                     </th>
                                     <th className="text-left p-6 font-semibold text-gray-700">
-                                        Etapa
+                                        Step
                                     </th>
                                     <th className="text-left p-6 font-semibold text-gray-700">
-                                        Valor
+                                        Value
                                     </th>
                                     <th className="text-left p-6 font-semibold text-gray-700">
-                                        Data de Criação
+                                        Creation Date
                                     </th>
                                     <th className="text-center p-6 font-semibold text-gray-700">
-                                        Ações
+                                        Actions
                                     </th>
                                 </tr>
                             </thead>
@@ -217,22 +211,22 @@ export function ClientsTable() {
                                         </td>
                                         <td className="p-6">
                                             <span
-                                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${getEtapaColor(
-                                                    client.etapa
+                                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${getStepColor(
+                                                    client.step
                                                 )}`}
                                             >
-                                                {client.etapa}
+                                                {client.step}
                                             </span>
                                         </td>
                                         <td className="p-6">
-                                            {client.valor ? (
+                                            {client.value ? (
                                                 <span className="text-lg font-bold text-green-600">
                                                     $
-                                                    {client.valor.toLocaleString()}
+                                                    {client.value.toLocaleString()}
                                                 </span>
                                             ) : (
                                                 <span className="text-gray-400 italic">
-                                                    Não informado
+                                                    Not informed
                                                 </span>
                                             )}
                                         </td>
@@ -250,7 +244,7 @@ export function ClientsTable() {
                                                 className="inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5"
                                             >
                                                 <Trash2 className="w-4 h-4" />
-                                                Remover
+                                                Remove
                                             </button>
                                         </td>
                                     </tr>

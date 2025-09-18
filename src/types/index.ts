@@ -1,10 +1,12 @@
+import React from 'react';
+
 export interface Lead {
     id: number;
     name: string;
     company: string;
     email: string;
     source: string;
-    status: string;
+    status: StatusType;
     score: number;
     image?: string;
     value?: number;
@@ -13,13 +15,16 @@ export interface Lead {
 export interface Client {
     id: number;
     accountName: string;
-    etapa: string;
-    valor: number | null;
+    step: string;
+    value: number | null;
     created: string;
-    nome?: string;
+    name?: string;
     email?: string;
     score?: number;
     source?: string;
+    company?: string;
+    image?: string;
+    status: StatusType;
 }
 
 export interface LeadsContextType {
